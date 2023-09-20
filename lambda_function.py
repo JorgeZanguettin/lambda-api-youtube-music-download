@@ -2,9 +2,23 @@ import os
 import boto3
 import yt_dlp
 
+
+BUCKET_NAME = os.environ['BUCKET_NAME']
+FOLDER_NAME = os.environ['FOLDER_NAME']
+
+
 def lambda_handler(event, context):
-    video_id = event['params']['querystring']['video_id']
-    video_url = f"https://www.youtube.com/watch?v={video_id}"
+    if "video_id" in event['params']['querystring']:
+        video_url = "https://www.youtube.com/watch?v={}".format(
+            event['params']['querystring']['video_id']
+        )
+    elif "video_url" in event['params']['querystring']:
+        video_url = event['params']['querystring']['video_url']
+    else:
+        return {
+          'message': "No video id or url provided"
+        }
+
     video_info = yt_dlp.YoutubeDL().extract_info(
         url = video_url,download=False
     )
@@ -22,7 +36,7 @@ def lambda_handler(event, context):
 
     url, log = upload_to_aws(
         filename,
-        f"musics/{video_info['title']}.mp3"
+        f"{FOLDER_NAME}/{video_info['title']}.mp3"
     )
     os.remove(
         filename
@@ -38,11 +52,11 @@ def upload_to_aws(local_file, s3_file):
     s3 = boto3.client('s3')
 
     try:
-        s3.upload_file(local_file, 'lambda-youtube-downloader', s3_file)
+        s3.upload_file(local_file, BUCKET_NAME, s3_file)
         url = s3.generate_presigned_url(
             ClientMethod='get_object',
             Params={
-                'Bucket': 'lambda-youtube-downloader',
+                'Bucket': BUCKET_NAME,
                 'Key': s3_file
             }
         )
